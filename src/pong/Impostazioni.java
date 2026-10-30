@@ -5,6 +5,7 @@ package pong;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -20,6 +21,33 @@ public record Impostazioni(int puntiPerVincere, int scartoMinimo, int velocitaPa
     /** Le impostazioni standard: 11 punti per vincere, scarto minimo 2, velocità della palla 5. */
     public static final Impostazioni STANDARD = new Impostazioni(11, 2, 5);
 
+    // Rappresenta le chiavi di config valide, l'uso delle maiuscole deve coincidere.
+    private enum RuntimeConfigType {
+        puntiPerVincere,
+        scartoMinimo,
+        velocitaPalla
+    }
+
+    private static void assertConfigValueValidOrThrow(RuntimeConfigType key, int value) {
+        switch (key) {
+            case puntiPerVincere:
+                if (value >= 1 && value <= 99) {
+                    return;
+                }
+                throw new IllegalArgumentException("puntiPerVincere deve essere compreso tra 1 e 99");
+            case scartoMinimo:
+                if (value >= 1 && value <= 10) {
+                    return;
+                }
+                throw new IllegalArgumentException("scartoMinimo deve essere compreso tra 1 e 10");
+            case velocitaPalla:
+                if (value >= 1 && value <= 20) {
+                    return;
+                }
+                throw new IllegalArgumentException("velocitaPalla deve essere compreso tra 1 e 20");
+        }
+    }
+
     /**
      * Il costruttore (lezione 7: un record che nasce giusto).
      * Promette: se i tre valori sono nei loro intervalli, le impostazioni con quei valori.
@@ -28,7 +56,9 @@ public record Impostazioni(int puntiPerVincere, int scartoMinimo, int velocitaPa
      * dice quale valore è sbagliato e perché.
      */
     public Impostazioni {
-        // scrivete qui
+        assertConfigValueValidOrThrow(RuntimeConfigType.puntiPerVincere, puntiPerVincere);
+        assertConfigValueValidOrThrow(RuntimeConfigType.scartoMinimo, scartoMinimo);
+        assertConfigValueValidOrThrow(RuntimeConfigType.velocitaPalla, velocitaPalla);
     }
 
     /**
@@ -51,7 +81,65 @@ public record Impostazioni(int puntiPerVincere, int scartoMinimo, int velocitaPa
      * Se ci sono errori in più righe, il messaggio è quello della riga più in alto.
      */
     public static Impostazioni leggi(List<String> righe) {
-        return STANDARD; // scrivete qui
+        EnumSet<RuntimeConfigType> overrides = EnumSet.noneOf(RuntimeConfigType.class);
+
+        int puntiPerVincere = STANDARD.puntiPerVincere;
+        int scartoMinimo = STANDARD.scartoMinimo;
+        int velocitaPalla = STANDARD.velocitaPalla;
+
+        for (int i = 0; i < righe.size(); i++) {
+            String row = righe.get(i);
+
+            if (row.isBlank() || row.strip().startsWith("#")) {
+                continue;
+            }
+
+            String[] spl = row.split("=", -1);
+            if (spl.length != 2) {
+                throw new IllegalArgumentException("riga " + (i + 1) + ": formato non valido.");
+            }
+
+            String key = spl[0].strip();
+            int value;
+            try {
+                value = Integer.parseInt(spl[1].strip());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("riga " + (i + 1) + ": il valore deve essere un intero.");
+            }
+            
+            try {
+                RuntimeConfigType type;
+                try {
+                    type = RuntimeConfigType.valueOf(key);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("chiave di config non valida.");
+                }
+
+                if (overrides.contains(type)) {
+                    throw new IllegalArgumentException("chiave di config già definita");
+                }
+
+                assertConfigValueValidOrThrow(type, value);
+
+                overrides.add(type);
+
+                switch (type) {
+                    case puntiPerVincere:
+                        puntiPerVincere = value;
+                        break;
+                    case scartoMinimo:
+                        scartoMinimo = value;
+                        break;
+                    case velocitaPalla:
+                        velocitaPalla = value;
+                        break;
+                }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("riga " + (i + 1) + ": " + e.getMessage());
+            }
+        }
+
+        return new Impostazioni(puntiPerVincere, scartoMinimo, velocitaPalla);
     }
 
     /**
